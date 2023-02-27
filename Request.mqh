@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.04"
+#property version   "1.05"
 #property strict
 
 #include "Requester.mqh"
@@ -112,13 +112,14 @@ int HttpRequest::Send(HttpResponse &response) const {
    // Use the offset we calculated to find the index of the resource we're requesting. If we don't
    // have a resource then we'll use a slash; otherwise, we'll get everything from the slash onward
    string host, resource;
-   int slashIndex = StringFind(m_url, "/", offset);
+   string url = StringSubstr(m_url, offset);
+   int slashIndex = StringFind(url, "/");
    if (slashIndex == -1) {
-      host = m_url;
+      host = url;
       resource = "/";
    } else {
-      host = StringSubstr(m_url, 0, slashIndex);
-      resource = StringSubstr(m_url, slashIndex);
+      host = StringSubstr(url, 0, slashIndex);
+      resource = StringSubstr(url, slashIndex);
    }
    
    // Log the request details now
@@ -127,7 +128,7 @@ int HttpRequest::Send(HttpResponse &response) const {
    #endif
 
    // Next, create our HTTP reqeuster from the verb, URL and referrer; if this fails then return an error
-   HttpRequester *req = new HttpRequester(m_verb, host, resource, port, secure, m_referrer);
+   HttpRequester req(m_verb, host, resource, port, secure, m_referrer);
    int errCode = GetLastError();
    if (errCode != 0 && errCode != ERR_UNKNOWN_COMMAND) {
       return errCode;
@@ -142,5 +143,10 @@ int HttpRequest::Send(HttpResponse &response) const {
    }
    
    // Finally, attempt to send the request and record data in the response
-   return req.SendRequest(m_body, response);
+   errCode = req.SendRequest(m_body, response);
+   if (errCode != 0) {
+      return errCode;
+   }
+   
+   return 0;
 }

@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.04"
+#property version   "1.05"
 #property strict
 
 #include "Response.mqh"
@@ -64,12 +64,11 @@ public:
 HttpRequester::HttpRequester(const string verb, const string host, const string resource, 
    const int port, const bool secure, const string referrer = NULL) {
    m_ready = false;
-   
-   InternetAttemptConnect(0);
-   
+   ResetLastError();
+      
    // First, report to Windows the user agent that we'll request HTTP data with. If this fails
    // then return an error
-   int flags = INTERNET_OPEN_TYPE_DIRECT | INTERNET_OPEN_TYPE_PRECONFIG | INTERNET_FLAG_NO_CACHE_WRITE;
+   int flags = INTERNET_OPEN_TYPE_PRECONFIG | INTERNET_FLAG_NO_CACHE_WRITE;
    m_open_handle = InternetOpenW(GetUserAgentString(), flags, NULL, NULL, 0);
    if (m_open_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
@@ -80,15 +79,9 @@ HttpRequester::HttpRequester(const string verb, const string host, const string 
       return;
    }
    
-   // Next, set the secure flag if we want a secure connection
-   if (secure) {
-      flags |= INTERNET_FLAG_SECURE;
-   }
-   
-   // Now, attempt to create an intenrnet connection to the URL at the desired port;
+   // Next, attempt to create an intenrnet connection to the URL at the desired port;
    // if this fails then return an error
-   m_session_handle = InternetConnectW(m_open_handle, host, port, NULL, NULL, 
-      INTERNET_SERVICE_HTTP, flags, 1);
+   m_session_handle = InternetConnectW(m_open_handle, host, port, "", "", INTERNET_SERVICE_HTTP, flags, 0);
    if (m_session_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
@@ -98,11 +91,16 @@ HttpRequester::HttpRequester(const string verb, const string host, const string 
       return;
    }
    
+   // Now, if we want a secure connection then add the secure flag to the connection
+   if (secure) {
+      flags |= INTERNET_FLAG_SECURE;
+   }
+   
    // Finally, open the HTTP request with the session variable, verb and URL; if this fails
    // then log and return an error
    string accepts[];
    m_request_handle = HttpOpenRequestW(m_session_handle, verb, resource, NULL, referrer, 
-      accepts, INTERNET_FLAG_NO_UI, 1);
+      accepts, flags, 0);
    if (m_request_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
@@ -185,7 +183,9 @@ int HttpRequester::SendRequest(const string body, HttpResponse &response) {
    }
 
    // Next, attempt to send the request to the server; if this fails then return an error
-   if (!HttpSendRequestW(m_request_handle, NULL, 0, body, StringLen(body) + 1)) {
+   char reqBuffer[];
+   int length = StringToCharArray(body, reqBuffer);
+   if (!HttpSendRequestW(m_request_handle, NULL, 0, reqBuffer, length)) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
          Print("Failed to send HTTP request, error: ", errCode);
@@ -195,10 +195,11 @@ int HttpRequester::SendRequest(const string body, HttpResponse &response) {
    
    // Now, attempt to read the response data into our response object
    int bytesRead;
-   string buffer;
+   char buffer[];
+   ArrayResize(buffer, INTERNET_BUFFER_LENGTH);
    while (InternetReadFile(m_request_handle, buffer, INTERNET_BUFFER_LENGTH, bytesRead) && bytesRead > 0) {
-      response.Body += buffer;
-      buffer = "";
+      response.Body += CharArrayToString(buffer);
+      ArrayInitialize(buffer, 0);
    }
    
    // Check if there was data left. If there was then the buffer did not finish reading which implies
@@ -214,7 +215,7 @@ int HttpRequester::SendRequest(const string body, HttpResponse &response) {
    // Finally, extract the status code from the response; if this fails then return an error
    int index;
    int size = sizeof(response.StatusCode);
-   if (!HttpQueryInfo(m_request_handle, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, 
+   if (!HttpQueryInfoW(m_request_handle, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, 
       response.StatusCode, size, index)) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();

@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.04"
+#property version   "1.05"
 #property strict
 
 // Internet-related error codes that will be returned
@@ -177,22 +177,13 @@
    bool HttpAddRequestHeadersW(int, string, int, uint);
    
    // Sends the specified request to the HTTP server
-   bool HttpSendRequestW(int, string, int, string, int);
-   
-   // Queries the server to determine the amount of data available.
-   bool InternetQueryDataAvailable(int, int&, int, int);
-   
-   // Writes data to an open Internet file.
-   bool InternetWriteFile(int, string, int, int&);
-   
-   // Ends an HTTP request that was initiated by HttpSendRequestEx.
-   bool HttpEndRequestW(int, string, int, int);
+   bool HttpSendRequestW(int, string, int, char &result[], int);
    
    // Reads data from a handle opened by the InternetOpenUrl, FtpOpenFile, or HttpOpenRequest function.
-   bool InternetReadFile(int, string, int, int&);
+   bool InternetReadFile(int, char &result[], int, int&);
    
    // Retrieves header information associated with an HTTP request.
-   bool HttpQueryInfo(int, int, int&, int&, int&);
+   bool HttpQueryInfoW(int, int, int&, int&, int&);
    
    // Closes a single Internet handle.
    bool InternetCloseHandle(int);
