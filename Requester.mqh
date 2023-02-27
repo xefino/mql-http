@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.03"
+#property version   "1.04"
 #property strict
 
 #include "Response.mqh"
@@ -28,9 +28,13 @@ public:
 
    // Creates a new instance of an HTTP requester; if this fails then the user error will be set
    //    verb:       The REST verb to associate with this request (POST, GET, PUT, DELETE, etc.)
-   //    url:        The URL we're sending the request to (should be preceded with http or https)
+   //    host:       The host name of the server we're connecting to
+   //    resource:   The path to the resource we're requesting
+   //    port:       The port number we want to send the request to
+   //    secure:     Whether or not the connection should be secured with a TLS/SSL certificate
    //    referrer:   A referrer to set on the request, defaults to NULL
-   HttpRequester(const string verb, const string url, const string referrer = NULL);
+   HttpRequester(const string verb, const string host, const string resource, const int port,
+      const bool secure, const string referrer = NULL);
 
    // Destroys this instance of the HTTP requester, releasing all the resources controlled by this request
    ~HttpRequester();
@@ -52,9 +56,13 @@ public:
 
 // Creates a new instance of an HTTP requester; if this fails then the user error will be set
 //    verb:       The REST verb to associate with this request (POST, GET, PUT, DELETE, etc.)
-//    url:        The URL we're sending the request to (should be preceded with http or https)
+//    host:       The host name of the server we're connecting to
+//    resource:   The path to the resource we're requesting
+//    port:       The port number we want to send the request to
+//    secure:     Whether or not the connection should be secured with a TLS/SSL certificate
 //    referrer:   A referrer to set on the request, defaults to NULL
-HttpRequester::HttpRequester(const string verb, const string url, const string referrer = NULL) {
+HttpRequester::HttpRequester(const string verb, const string host, const string resource, 
+   const int port, const bool secure, const string referrer = NULL) {
    m_ready = false;
    
    InternetAttemptConnect(0);
@@ -72,30 +80,19 @@ HttpRequester::HttpRequester(const string verb, const string url, const string r
       return;
    }
    
-   // Next, get the port from the URL; if the protocol wasn't set to HTTP or HTTPS then 
-   // return an error
-   int port;
-   if (StringSubstr(url, 0, 5) == INTERNET_PROTOCOL_HTTPS) {
-      port = INTERNET_DEFAULT_HTTPS_PORT;
+   // Next, set the secure flag if we want a secure connection
+   if (secure) {
       flags |= INTERNET_FLAG_SECURE;
-   } else if (StringSubstr(url, 0, 4) == INTERNET_PROTOCOL_HTTP) {
-      port = INTERNET_DEFAULT_HTTP_PORT;
-   } else {
-      #ifdef HTTP_LIBRARY_LOGGING
-         Print("Invalid protocol present on URL ", url);
-      #endif
-      SetUserError(INTERNET_PROTOCOL_INVALID_ERROR);
-      return;
    }
    
    // Now, attempt to create an intenrnet connection to the URL at the desired port;
    // if this fails then return an error
-   m_session_handle = InternetConnectW(m_open_handle, url, port, NULL, NULL, 
+   m_session_handle = InternetConnectW(m_open_handle, host, port, NULL, NULL, 
       INTERNET_SERVICE_HTTP, flags, 1);
    if (m_session_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
-         PrintFormat("Failed to connect to %s:%d, error: %d", url, port, errCode);
+         PrintFormat("Failed to connect to %s:%d, error: %d", host, port, errCode);
       #endif
       SetUserError(INTERNET_CONNECT_FAILED_ERROR);
       return;
@@ -104,13 +101,13 @@ HttpRequester::HttpRequester(const string verb, const string url, const string r
    // Finally, open the HTTP request with the session variable, verb and URL; if this fails
    // then log and return an error
    string accepts[];
-   m_request_handle = HttpOpenRequestW(m_session_handle, verb, url, NULL, referrer, 
+   m_request_handle = HttpOpenRequestW(m_session_handle, verb, resource, NULL, referrer, 
       accepts, INTERNET_FLAG_NO_UI, 1);
    if (m_request_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
-         PrintFormat("Failed to create %s HTTP request to %s:%d, error: %d", 
-            verb, url, port, errCode);
+         PrintFormat("Failed to create %s HTTP request to %s/%s against port %d, error: %d", 
+            verb, host, resource, port, errCode);
       #endif
       SetUserError(INTERNET_OPEN_REQUEST_FAILED_ERROR);
       return;
@@ -188,47 +185,12 @@ int HttpRequester::SendRequest(const string body, HttpResponse &response) {
    }
 
    // Next, attempt to send the request to the server; if this fails then return an error
-   if (!HttpSendRequestW(m_request_handle, NULL, 0, body, StringLen(body))) {
-      
-      // First, attempt to read the error and check that it isn't zero. There is a chance that
-      // we need to write additional data so, in this case we'll continue on. Otherwise, we'll
-      // log the failure and return an error
-      int errCode = GetLastError();
-      if (errCode != 0) {
-         #ifdef HTTP_LIBRARY_LOGGING
-            Print("Failed to send HTTP request, error: ", errCode);
-         #endif
-         return INTERNET_SEND_FAILED_ERROR;
-      }
-      
-      // Next, check if we have query data available and, if we do, attempt to write data to an
-      // internet file. If the query fails because there are no more files then do nothing; otherwise,
-      // log the error and return
-      int data;
-      if (!InternetQueryDataAvailable(m_request_handle, data, 0, 0)) {
+   if (!HttpSendRequestW(m_request_handle, NULL, 0, body, StringLen(body) + 1)) {
+      #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
-         if (errCode != ERROR_NO_MORE_FILES) {
-            #ifdef HTTP_LIBRARY_LOGGING
-               Print("Failed to check if more data was available to send, error: ", errCode);
-            #endif
-            return INTERNET_SEND_FAILED_ERROR;
-         }
-      } else if (!InternetWriteFile(m_request_handle, body, StringLen(body), data)) {
-         #ifdef HTTP_LIBRARY_LOGGING
-            int errCode = GetLastError();
-            Print("Failed to write the remaining data to the HTTP request, error: ", errCode);
-         #endif
-         return INTERNET_SEND_FAILED_ERROR;
-      }
-      
-      // Finally, end the HTTP request; if this fails then log the error and return
-      if (!HttpEndRequest(m_request_handle, NULL, 0, 0)) {
-         #ifdef HTTP_LIBRARY_LOGGING
-            int errCode = GetLastError();
-            Print("Failed to end the HTTP request, error: ", errCode);
-         #endif
-         return INTERNET_SEND_FAILED_ERROR;
-      }
+         Print("Failed to send HTTP request, error: ", errCode);
+      #endif
+      return INTERNET_SEND_FAILED_ERROR;
    }
    
    // Now, attempt to read the response data into our response object

@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.03"
+#property version   "1.04"
 #property strict
 
 #include "Requester.mqh"
@@ -90,14 +90,50 @@ void HttpRequest::AddHeader(const string name, const string value, const bool co
 //    response:   The object that will contain the data from the HTTP response
 int HttpRequest::Send(HttpResponse &response) const {
 
-   // First, create our HTTP reqeuster from the verb, URL and referrer; if this fails then return an error
-   HttpRequester *req = new HttpRequester(m_verb, m_url, m_referrer);
+   // First, check the protocol associated with the request. Also, if we have an HTTPS
+   // request then set the secure flag to true. Otherwise, if the protocol isn't one we
+   // recognize then return an error
+   int port, offset;
+   bool secure = false;
+   if (StringSubstr(m_url, 0, 5) == INTERNET_PROTOCOL_HTTPS) {
+      port = INTERNET_DEFAULT_HTTPS_PORT;
+      offset = 8;
+      secure = true;
+   } else if (StringSubstr(m_url, 0, 4) == INTERNET_PROTOCOL_HTTP) {
+      port = INTERNET_DEFAULT_HTTP_PORT;
+      offset = 6;
+   } else {
+      #ifdef HTTP_LIBRARY_LOGGING
+         Print("Invalid protocol present on URL ", m_url);
+      #endif
+      return INTERNET_PROTOCOL_INVALID_ERROR;
+   }
+   
+   // Use the offset we calculated to find the index of the resource we're requesting. If we don't
+   // have a resource then we'll use a slash; otherwise, we'll get everything from the slash onward
+   string host, resource;
+   int slashIndex = StringFind(m_url, "/", offset);
+   if (slashIndex == -1) {
+      host = m_url;
+      resource = "/";
+   } else {
+      host = StringSubstr(m_url, 0, slashIndex);
+      resource = StringSubstr(m_url, slashIndex);
+   }
+   
+   // Log the request details now
+   #ifdef HTTP_LIBRARY_LOGGING
+      PrintFormat("Sending HTTP request to host %s, resource %s at port %d", host, resource, port);
+   #endif
+
+   // Next, create our HTTP reqeuster from the verb, URL and referrer; if this fails then return an error
+   HttpRequester *req = new HttpRequester(m_verb, host, resource, port, secure, m_referrer);
    int errCode = GetLastError();
    if (errCode != 0 && errCode != ERR_UNKNOWN_COMMAND) {
       return errCode;
    }
    
-   // Next, iterate over our headers and attempt to add each to the requester; if this fails then return an error
+   // Now, iterate over our headers and attempt to add each to the requester; if this fails then return an error
    for (int i = 0; i < m_num_headers; i++) {
       errCode = req.AddHeader(m_header_names[i], m_header_values[i], m_header_coalesce[i]);
       if (errCode != 0) {
