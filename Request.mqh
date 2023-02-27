@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.01"
+#property version   "1.03"
 #property strict
 
 #include "Requester.mqh"
@@ -93,7 +93,7 @@ int HttpRequest::Send(HttpResponse &response) const {
    // First, create our HTTP reqeuster from the verb, URL and referrer; if this fails then return an error
    HttpRequester *req = new HttpRequester(m_verb, m_url, m_referrer);
    int errCode = GetLastError();
-   if (errCode != 0) {
+   if (errCode != 0 && errCode != ERR_UNKNOWN_COMMAND) {
       return errCode;
    }
    

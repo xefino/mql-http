@@ -3,6 +3,7 @@
 #property strict
 
 // Internet-related error codes that will be returned
+#define ERROR_NO_MORE_FILES                  18
 #define INTERNET_OPEN_FAILED_ERROR           5000
 #define INTERNET_PROTOCOL_INVALID_ERROR      5001
 #define INTERNET_CONNECT_FAILED_ERROR        5002
@@ -160,6 +161,9 @@
 // DLL imports
 #import "Wininet.dll"
 
+   // Attempts to make a connection to the Internet.
+   int InternetAttemptConnect(uint dwReserved);
+
    // Initializes an application's use of the WinINet functions.
    int InternetOpenW(string, int, string, string, int);
    
@@ -175,6 +179,15 @@
    // Sends the specified request to the HTTP server
    bool HttpSendRequestW(int, string, int, string, int);
    
+   // Queries the server to determine the amount of data available.
+   bool InternetQueryDataAvailable(int, &int, int, int);
+   
+   // Writes data to an open Internet file.
+   bool InternetWriteFile(int, string, int, &int);
+   
+   // Ends an HTTP request that was initiated by HttpSendRequestEx.
+   bool HttpEndRequest(int, int, int, int);
+   
    // Reads data from a handle opened by the InternetOpenUrl, FtpOpenFile, or HttpOpenRequest function.
    bool InternetReadFile(int, string, int, int&);
    
@@ -183,6 +196,9 @@
    
    // Closes a single Internet handle.
    bool InternetCloseHandle(int); 
+   
+   // Retrieves the error message returned from Windows
+   int  GetLastError();
 #import
 
 // Constant string values for internet protocols

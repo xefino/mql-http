@@ -1,9 +1,18 @@
 #property copyright "Xefino"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
 
 #include "Response.mqh"
 #include "WebCommon.mqh"
+
+// Define the components of the user agent
+#define APP_NAME        "Xefino"
+#define APP_VERSION     "1.03"
+#ifdef __WIN64__
+   #define USER_AGENT   "Windows 64-bit"
+#else
+   #define USER_AGENT   "Windows 32-bit"
+#endif
 
 // HttpRequester
 // Allows for the structured request of HTTP resources
@@ -48,10 +57,12 @@ public:
 HttpRequester::HttpRequester(const string verb, const string url, const string referrer = NULL) {
    m_ready = false;
    
+   InternetAttemptConnect(0);
+   
    // First, report to Windows the user agent that we'll request HTTP data with. If this fails
    // then return an error
-   m_open_handle = InternetOpenW("Xefino OrderSend", INTERNET_OPEN_TYPE_PRECONFIG, 
-      NULL, NULL, INTERNET_FLAG_NO_UI);
+   int flags = INTERNET_OPEN_TYPE_DIRECT | INTERNET_OPEN_TYPE_PRECONFIG | INTERNET_FLAG_NO_CACHE_WRITE;
+   m_open_handle = InternetOpenW(GetUserAgentString(), flags, NULL, NULL, 0);
    if (m_open_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
@@ -66,6 +77,7 @@ HttpRequester::HttpRequester(const string verb, const string url, const string r
    int port;
    if (StringSubstr(url, 0, 5) == INTERNET_PROTOCOL_HTTPS) {
       port = INTERNET_DEFAULT_HTTPS_PORT;
+      flags |= INTERNET_FLAG_SECURE;
    } else if (StringSubstr(url, 0, 4) == INTERNET_PROTOCOL_HTTP) {
       port = INTERNET_DEFAULT_HTTP_PORT;
    } else {
@@ -79,7 +91,7 @@ HttpRequester::HttpRequester(const string verb, const string url, const string r
    // Now, attempt to create an intenrnet connection to the URL at the desired port;
    // if this fails then return an error
    m_session_handle = InternetConnectW(m_open_handle, url, port, NULL, NULL, 
-      INTERNET_SERVICE_DEFAULT, INTERNET_FLAG_NO_UI, 1);
+      INTERNET_SERVICE_HTTP, flags, 1);
    if (m_session_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
@@ -177,11 +189,46 @@ int HttpRequester::SendRequest(const string body, HttpResponse &response) {
 
    // Next, attempt to send the request to the server; if this fails then return an error
    if (!HttpSendRequestW(m_request_handle, NULL, 0, body, StringLen(body))) {
-      #ifdef HTTP_LIBRARY_LOGGING
+      
+      // First, attempt to read the error and check that it isn't zero. There is a chance that
+      // we need to write additional data so, in this case we'll continue on. Otherwise, we'll
+      // log the failure and return an error
+      int errCode = GetLastError();
+      if (errCode != 0) {
+         #ifdef HTTP_LIBRARY_LOGGING
+            Print("Failed to send HTTP request, error: ", errCode);
+         #endif
+         return INTERNET_SEND_FAILED_ERROR;
+      }
+      
+      // Next, check if we have query data available and, if we do, attempt to write data to an
+      // internet file. If the query fails because there are no more files then do nothing; otherwise,
+      // log the error and return
+      int data;
+      if (!InternetQueryDataAvailable(m_request_handle, data, 0, 0)) {
          int errCode = GetLastError();
-         PrintFormat("Failed to send HTTP request, error: %d", errCode);
-      #endif
-      return INTERNET_SEND_FAILED_ERROR;
+         if (errCode != ERROR_NO_MORE_FILES) {
+            #ifdef HTTP_LIBRARY_LOGGING
+               Print("Failed to check if more data was available to send, error: ", errCode);
+            #endif
+            return INTERNET_SEND_FAILED_ERROR;
+         }
+      } else if (!InternetWriteFile(m_request_handle, body, StringLen(body), data)) {
+         #ifdef HTTP_LIBRARY_LOGGING
+            int errCode = GetLastError();
+            Print("Failed to write the remaining data to the HTTP request, error: ", errCode);
+         #endif
+         return INTERNET_SEND_FAILED_ERROR;
+      }
+      
+      // Finally, end the HTTP request; if this fails then log the error and return
+      if (!HttpEndRequest(m_request_handle, NULL, 0, 0)) {
+         #ifdef HTTP_LIBRARY_LOGGING
+            int errCode = GetLastError();
+            Print("Failed to end the HTTP request, error: ", errCode);
+         #endif
+         return INTERNET_SEND_FAILED_ERROR;
+      }
    }
    
    // Now, attempt to read the response data into our response object
@@ -215,4 +262,10 @@ int HttpRequester::SendRequest(const string body, HttpResponse &response) {
    }
    
    return 0;
+}
+
+// Helper function that gets the user agent string
+string GetUserAgentString() {
+    return StringFormat("%s/%s (%s; Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " + 
+      "(KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36)", APP_NAME, APP_VERSION, USER_AGENT);
 }
