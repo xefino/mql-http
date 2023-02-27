@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 #include "WebCommon.mqh"
@@ -26,10 +26,8 @@ public:
    // Creates a new instance of an HTTP request; if this fails then the user error will be set
    //    verb:       The REST verb to associate with this request (POST, GET, PUT, DELETE, etc.)
    //    url:        The URL we're sending the request to (should be preceded with http or https)
-   //    accept:     A list of accept headers we'll send with the request
    //    referrer:   A referrer to set on the request, defaults to NULL
-   HttpRequest(const string verb, const string url, const string &accept[], 
-      const string referrer = NULL);
+   HttpRequest(const string verb, const string url, const string referrer = NULL);
 
    // Destroys this instance of the HTTP request, releasing all the resources controlled by this request
    ~HttpRequest();
@@ -52,10 +50,8 @@ public:
 // Creates a new instance of an HTTP request; if this fails then the user error will be set
 //    verb:       The REST verb to associate with this request (POST, GET, PUT, DELETE, etc.)
 //    url:        The URL we're sending the request to (should be preceded with http or https)
-//    accept:     A list of accept headers we'll send with the request
 //    referrer:   A referrer to set on the request, defaults to NULL
-HttpRequest::HttpRequest(const string verb, const string url, const string &accept[], 
-   const string referrer = NULL) {
+HttpRequest::HttpRequest(const string verb, const string url, const string referrer = NULL) {
    m_ready = false;
    
    // First, report to Windows the user agent that we'll request HTTP data with. If this fails
@@ -86,8 +82,8 @@ HttpRequest::HttpRequest(const string verb, const string url, const string &acce
       return;
    }
    
-   // Attempt to create an intenrnet connection to the URL at the desired port; if this 
-   // fails then return an error
+   // Now, attempt to create an intenrnet connection to the URL at the desired port;
+   // if this fails then return an error
    m_session_handle = InternetConnectW(m_open_handle, url, port, NULL, NULL, 
       INTERNET_SERVICE_DEFAULT, INTERNET_FLAG_NO_UI, 1);
    if (session == INTERNET_INVALID_HANDLE) {
@@ -99,19 +95,10 @@ HttpRequest::HttpRequest(const string verb, const string url, const string &acce
       return;
    }
    
-   // Now, setup the accept headers and ensure that the last value is a NULL
-   string accepts[];
-   ArrayCopy(accepts, accept);
-   int length = ArraySize(accepts);
-   if (length > 0 && accepts[length - 1] != NULL) {
-      ArrayResize(accepts, length + 1);
-      accepts[length] = NULL;
-   }
-   
    // Finally, open the HTTP request with the session variable, verb and URL; if this fails
    // then log and return an error
    m_request_handle = HttpOpenRequestW(m_session_handle, verb, url, NULL, referrer, 
-      accepts, INTERNET_FLAG_NO_UI, 1);
+      NULL, INTERNET_FLAG_NO_UI, 1);
    if (request == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
          int errCode = GetLastError();
