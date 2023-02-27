@@ -1,16 +1,16 @@
 #property copyright "Xefino"
-#property version   "1.00"
+#property version   "1.02"
 #property strict
 
-#define INTERNET_OPEN_FAILED_ERROR           (5000)
-#define INTERNET_PROTOCOL_INVALID_ERROR      (5001)
-#define INTERNET_CONNECT_FAILED_ERROR        (5002)
-#define INTERNET_OPEN_REQUEST_FAILED_ERROR   (5003)
-#define INTERNET_ADD_HEADER_FAILED_ERROR     (5004)
-#define INTERNET_SEND_FAILED_ERROR           (5005)
-#define INTERNET_RECEIVE_FAILED_ERROR        (5006)
-#define INTERNET_READ_RESP_FAILED_ERROR      (5007)
-#define INTERNET_REQUEST_NOT_READY           (5008)
+#define INTERNET_OPEN_FAILED_ERROR           5000
+#define INTERNET_PROTOCOL_INVALID_ERROR      5001
+#define INTERNET_CONNECT_FAILED_ERROR        5002
+#define INTERNET_OPEN_REQUEST_FAILED_ERROR   5003
+#define INTERNET_ADD_HEADER_FAILED_ERROR     5004
+#define INTERNET_SEND_FAILED_ERROR           5005
+#define INTERNET_RECEIVE_FAILED_ERROR        5006
+#define INTERNET_READ_RESP_FAILED_ERROR      5007
+#define INTERNET_REQUEST_NOT_READY           5008
 
 #define INTERNET_INVALID_HANDLE     (0)
 #define INTERNET_BUFFER_LENGTH      (1024)
@@ -149,7 +149,8 @@
 #define HTTP_QUERY_FLAG_SYSTEMTIME           (0x40000000)
 #define HTTP_QUERY_FLAG_REQUEST_HEADERS      (0x80000000)
 
-#import  "Wininet.dll"
+// DLL imports
+#import "Wininet.dll"
 
    // Initializes an application's use of the WinINet functions.
    int InternetOpenW(string, int, string, string, int);
@@ -161,7 +162,7 @@
    int HttpOpenRequestW(int, string, string, string, string, string& AcceptTypes[], int, int);
    
    // Adds one or more HTTP request headers to the HTTP request handle.
-   bool HttpAddRequestHeadersW(int, string, int, int);
+   bool HttpAddRequestHeadersW(int, string, int, uint);
    
    // Sends the specified request to the HTTP server
    bool HttpSendRequestW(int, string, int, string, int);
@@ -174,8 +175,8 @@
    
    // Closes a single Internet handle.
    bool InternetCloseHandle(int); 
-      
 #import
 
+// Constant string values for internet protocols
 const string INTERNET_PROTOCOL_HTTP = "http";
 const string INTERNET_PROTOCOL_HTTPS = "https";
