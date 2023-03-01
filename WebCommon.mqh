@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.05"
+#property version   "1.06"
 #property strict
 
 // Internet-related error codes that will be returned

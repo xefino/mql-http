@@ -1,5 +1,5 @@
 #property copyright "Xefino"
-#property version   "1.05"
+#property version   "1.06"
 #property strict
 
 #include "Response.mqh"
@@ -7,7 +7,7 @@
 
 // Define the components of the user agent
 #define APP_NAME        "Xefino"
-#define APP_VERSION     "1.03"
+#define APP_VERSION     "1.06"
 #ifdef __WIN64__
    #define USER_AGENT   "Windows 64-bit"
 #else
@@ -68,7 +68,7 @@ HttpRequester::HttpRequester(const string verb, const string host, const string 
       
    // First, report to Windows the user agent that we'll request HTTP data with. If this fails
    // then return an error
-   int flags = INTERNET_OPEN_TYPE_PRECONFIG | INTERNET_FLAG_NO_CACHE_WRITE;
+   int flags = INTERNET_OPEN_TYPE_PRECONFIG;
    m_open_handle = InternetOpenW(GetUserAgentString(), flags, NULL, NULL, 0);
    if (m_open_handle == INTERNET_INVALID_HANDLE) {
       #ifdef HTTP_LIBRARY_LOGGING
